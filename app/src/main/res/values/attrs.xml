@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="TitleView">
+        <attr name="m_titleName" format="string" />
+        <attr name="m_isVisibleLine" format="boolean" />
+        <attr name="m_rightRes" format="reference" />
+        <attr name="m_leftRes" format="reference" />
+        <attr name="m_titleColor" format="color" />
+        <attr name="m_layout" format="integer" />
+        <attr name="m_showState" format="boolean" />
+        <attr name="m_showLine" format="boolean" />
+    </declare-styleable>
+</resources>

@@ -8,8 +8,6 @@ import androidx.annotation.Nullable;
 
 import com.gyf.immersionbar.components.SimpleImmersionFragment;
 
-import org.greenrobot.eventbus.EventBus;
-
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 
@@ -151,8 +149,6 @@ public abstract class BaseFragment extends SimpleImmersionFragment {
     protected boolean isFragmentVisible() {
         return isFragmentVisible;
     }
-
-
 
 
 }

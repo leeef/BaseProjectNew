@@ -59,6 +59,10 @@ public class BaseApplication extends Application {
         activityList.add(activity);
     }
 
+    public List<Activity> getActivityList() {
+        return activityList;
+    }
+
     //遍历所有Activity并finish
     public void exit() {
         for (Activity activity : activityList) {
