@@ -2,25 +2,35 @@ package com.leeef.tkstore.base.activity;
 
 import android.content.Context;
 import android.os.Bundle;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.viewbinding.ViewBinding;
 
 import com.gyf.immersionbar.components.SimpleImmersionFragment;
+
+import org.greenrobot.eventbus.EventBus;
+import org.greenrobot.eventbus.Subscribe;
+
+import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
 
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 
 
-public abstract class BaseFragment extends SimpleImmersionFragment {
+public abstract class BaseFragment<VB extends ViewBinding> extends SimpleImmersionFragment {
 
     public static final String TAG = BaseFragment.class.getSimpleName();
     public Context mContext;
-    private boolean isFragmentVisible;
-    private boolean isReuseView;
-    private boolean isFirstVisible;
+    private boolean isViewCreated;
+    private boolean isUIVisible;
+    public boolean isVisibleToUser;
     private View rootView;
-
+    public VB vb = null;
 
     /**
      * 如果这个CompositeDisposable容器已经是处于dispose的状态，那么所有加进来的disposable都会被自动切断。防止内存泄漏
@@ -42,113 +52,90 @@ public abstract class BaseFragment extends SimpleImmersionFragment {
     @Override
     public void setUserVisibleHint(boolean isVisibleToUser) {
         super.setUserVisibleHint(isVisibleToUser);
-        if (isChange && isLoad) {
-            onFragmentFirstVisible();
-        }
-
-        //setUserVisibleHint()有可能在fragment的生命周期外被调用
-        if (rootView == null) {
-            return;
-        }
-        if (isFirstVisible && isVisibleToUser) {
-            onFragmentFirstVisible();
-            isFirstVisible = false;
-        }
+        this.isVisibleToUser = isVisibleToUser;
         if (isVisibleToUser) {
-            onFragmentVisibleChange(true);
-            isFragmentVisible = true;
-            return;
+            isUIVisible = true;
+            lazyLoad();
+        } else {
+            isUIVisible = false;
         }
-        if (isFragmentVisible) {
-            isFragmentVisible = false;
-            onFragmentVisibleChange(false);
+    }
+
+    private void lazyLoad() {
+        if (isViewCreated && isUIVisible) {
+            lazyLoadData();
+            isViewCreated = false;
+            isUIVisible = false;
         }
     }
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        initVariable();
+        mContext = getActivity();
+        EventBus.getDefault().register(this);
     }
+
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        if (rootView == null) {
+            ParameterizedType type = (ParameterizedType) getClass().getGenericSuperclass();
+            Class clazz = (Class) type.getActualTypeArguments()[0];
+            try {
+                Method method = clazz.getMethod("inflate", LayoutInflater.class);
+                vb = (VB) method.invoke(null, getLayoutInflater());
+                rootView = vb.getRoot();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            initData();
+            initListener();
+        }
+        return rootView;
+    }
+
+    public abstract void initData();
+
+    public abstract void initListener();
 
     @Override
     public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
-        mContext = getActivity();
         //如果setUserVisibleHint()在rootView创建前调用时，那么
         //就等到rootView创建完后才回调onFragmentVisibleChange(true)
         //保证onFragmentVisibleChange()的回调发生在rootView创建完成之后，以便支持ui操作
-        if (rootView == null) {
-            rootView = view;
-            initViewsAndEvents(rootView);
-            if (getUserVisibleHint()) {
-                if (isFirstVisible) {
-                    onFragmentFirstVisible();
-                    isFirstVisible = false;
-                }
-                onFragmentVisibleChange(true);
-                isFragmentVisible = true;
-            }
-        }
-        super.onViewCreated(isReuseView && rootView != null ? rootView : view, savedInstanceState);
+        super.onViewCreated(view, savedInstanceState);
+        isViewCreated = true;
+        lazyLoad();
     }
-
-    /**
-     * 初始化控件
-     *
-     * @param rootView
-     */
-    protected abstract void initViewsAndEvents(View rootView);
 
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        initVariable();
+        rootView = null;
+        EventBus.getDefault().unregister(this);
         if (mDisposable != null) {
             mDisposable.dispose();
         }
     }
 
-    private void initVariable() {
-        isFirstVisible = true;
-        isFragmentVisible = false;
-        rootView = null;
-        isReuseView = true;
-    }
-
     /**
-     * @param isReuse
-     */
-    protected void reuseView(boolean isReuse) {
-        isReuseView = isReuse;
-    }
-
-    /**
-     * 去除setUserVisibleHint()多余的回调场景，保证只有当fragment可见状态发生变化时才回调
-     * 回调时机在view创建完后，所以支持ui操作，解决在setUserVisibleHint()里进行ui操作有可能报null异常的问题
-     * <p>
-     * 可在该回调方法里进行一些ui显示与隐藏
+     * 统一消息处理
      *
-     * @param isVisible true  不可见 -> 可见
-     *                  false 可见  -> 不可见
+     * @param eventMsg
      */
-    protected void onFragmentVisibleChange(boolean isVisible) {
+    @Subscribe
+    public void onEventMainThread(EventMsg eventMsg) {
+        handleEventMsg(eventMsg);
     }
 
-    private boolean isChange = false;
-    private boolean isLoad = false;
+    public void handleEventMsg(EventMsg eventMsg) {
 
-    /**
-     * 在fragment首次可见时回调，可用于加载数据，防止每次进入都重复加载数据
-     */
-    protected void onFragmentFirstVisible() {
-        isLoad = true;
-        isChange = false;
     }
 
-    protected boolean isFragmentVisible() {
-        return isFragmentVisible;
-    }
+
+    public abstract void lazyLoadData(); //需要懒加载的数据，重写此方法
 
 
 }
